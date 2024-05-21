@@ -58,13 +58,15 @@ class VerificationQueue {
                     verification.getValue().setVerified(true);
                 }
 
-                if (verification.getKey().startsWith(page)) {
+                if (verification.getKey().startsWith(page) && !verification.getKey().contains("#")) {
                     Elements links = document.select("a[href]");
 
                     for (Element link : links) {
                         String linkHref = link.attr("href");
                         if (linkHref.startsWith("/")) {
                             linkHref = rootContext + linkHref;
+                        } else if (linkHref.startsWith("#")) {
+                            linkHref = verification.getKey() + linkHref;
                         }
                         if (linkHref.endsWith("/")) {
                             linkHref = linkHref.substring(0, linkHref.length() - 1);
