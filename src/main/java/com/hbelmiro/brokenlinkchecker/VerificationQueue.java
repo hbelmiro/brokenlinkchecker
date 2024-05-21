@@ -32,7 +32,7 @@ class VerificationQueue {
         }
     }
 
-    public Flow.Publisher<String> verify() {
+    public Flow.Publisher<String> verify(VerificationOptions verificationOptions) {
         SubmissionPublisher<String> publisher = new SubmissionPublisher<>();
 
         new Thread(() -> {
@@ -45,12 +45,14 @@ class VerificationQueue {
                 Document document;
                 try {
                     document = Jsoup.connect(verification.getKey()).get();
-                    publisher.submit(verification.getKey() + ": OK");
+                    if (!verificationOptions.isShowOnlyErrors()) {
+                        publisher.submit(verification.getKey() + ": OK");
+                    }
                 } catch (HttpStatusException e) {
                     publisher.submit(verification.getKey() + ": " + e.getStatusCode());
                     continue;
                 } catch (IllegalArgumentException | IOException e) {
-                    publisher.submit(verification.getKey() + ": Unexpected Exception: " + e.getMessage());
+                    publisher.submit(verification.getKey() + ": " + e.getMessage());
                     continue;
                 } finally {
                     verification.getValue().setVerified(true);

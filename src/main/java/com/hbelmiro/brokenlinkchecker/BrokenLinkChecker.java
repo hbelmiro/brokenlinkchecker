@@ -8,8 +8,8 @@ import java.util.concurrent.Flow;
 @ApplicationScoped
 class BrokenLinkChecker {
 
-    public Flow.Publisher<String> check(String rootContext, String page) {
+    public Flow.Publisher<String> check(String rootContext, String page, VerificationOptions verificationOptions) {
         var verificationQueue = new VerificationQueue(rootContext, page);
-        return verificationQueue.verify();
+        return verificationQueue.verify(verificationOptions);
     }
 }

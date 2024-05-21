@@ -15,6 +15,9 @@ public class BrokenLinkCheckerCommand implements Runnable {
     @CommandLine.Option(names = {"-p", "--page"}, required = true)
     private String page;
 
+    @CommandLine.Option(names = {"-e", "--show-only-errors"}, defaultValue = "false")
+    private boolean showOnlyErrors;
+
     private final BrokenLinkChecker brokenLinkChecker;
 
     @Inject
@@ -24,7 +27,11 @@ public class BrokenLinkCheckerCommand implements Runnable {
 
     @Override
     public void run() {
-        brokenLinkChecker.check(rootContext, page)
+        VerificationOptions verificationOptions = VerificationOptions.newBuilder()
+                .showOnlyErrors(showOnlyErrors)
+                .build();
+
+        brokenLinkChecker.check(rootContext, page, verificationOptions)
                 .subscribe(new Flow.Subscriber<>() {
                     @Override
                     public void onSubscribe(Flow.Subscription subscription) {
@@ -44,7 +51,7 @@ public class BrokenLinkCheckerCommand implements Runnable {
 
                     @Override
                     public void onComplete() {
-                        System.out.println("COMPLETE!!!");
+                        System.out.println("✅ Verification complete!");
                     }
                 });
     }
