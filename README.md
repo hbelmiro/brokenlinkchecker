@@ -1,5 +1,13 @@
 # brokenlinkchecker
 
+👷 Work in progress...
+
+## How to run
+
+```bash
+mvn clean quarkus:dev -Dquarkus.args="-e -rc http://localhost:1313 -p http://localhost:1313/docs/components/pipelines"
+```
+
 This project uses Quarkus, the Supersonic Subatomic Java Framework.
 
 If you want to learn more about Quarkus, please visit its website: https://quarkus.io/ .
