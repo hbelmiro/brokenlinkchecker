@@ -1,89 +1,109 @@
 package com.hbelmiro.brokenlinkchecker;
 
-import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Flow;
-import java.util.concurrent.SubmissionPublisher;
+import java.util.function.Consumer;
 
 class VerificationQueue {
 
-    private final Map<String, Verification> verifications = new HashMap<>();
+    private static final String OK = "✅";
+
+    private static final String NOT_OK = "⛔";
+
+    private final List<String> toVerify = new ArrayList<>();
+
+    private final Map<String, Verification> verifiedLinks = new HashMap<>();
 
     private final String rootContext;
 
     private final String page;
 
-    VerificationQueue(String rootContext, String page) {
+    private final Consumer<String> onCheckStatus;
+
+    VerificationQueue(String rootContext, String page, Consumer<String> onCheckStatus) {
         this.rootContext = rootContext;
         this.page = page;
-        verifications.put(page, new Verification());
+        this.onCheckStatus = onCheckStatus;
+        toVerify.add(page);
     }
 
-    void add(String url) {
-        if (!verifications.containsKey(url)) {
-            verifications.put(url, new Verification());
+    private List<String> getLinks(String url) {
+        Document document;
+        try {
+            document = Jsoup.connect(url).get();
+        } catch (Exception e) {
+            return List.of();
+        }
+
+        Elements links = document.select("a[href]");
+
+        List<String> linksToReturn = new ArrayList<>();
+
+        for (Element link : links) {
+            String linkHref = link.attr("href");
+            if (linkHref.startsWith("/")) {
+                linkHref = rootContext + linkHref;
+            } else if (linkHref.startsWith("#")) {
+                linkHref = url + linkHref;
+            }
+            if (linkHref.endsWith("/")) {
+                linkHref = linkHref.substring(0, linkHref.length() - 1);
+            }
+            linksToReturn.add(linkHref);
+        }
+
+        return linksToReturn;
+    }
+
+    private String checkUrl(String url) {
+        Verification verification = verifiedLinks.get(url);
+        if (verification != null) {
+            return verification.getStatus();
+        } else {
+            try {
+                Jsoup.connect(url).get();
+                verification = new Verification();
+                verification.setStatus(OK);
+                verifiedLinks.put(url, verification);
+                return OK;
+            } catch (Exception e) {
+                verification = new Verification();
+                String status = NOT_OK;
+                verification.setStatus(status);
+                verifiedLinks.put(url, verification);
+                return status;
+            }
         }
     }
 
-    public Flow.Publisher<String> verify(VerificationOptions verificationOptions) {
-        SubmissionPublisher<String> publisher = new SubmissionPublisher<>();
+    public void verify(VerificationOptions verificationOptions) {
+        while (!toVerify.isEmpty()) {
+            String current = toVerify.get(0);
+            toVerify.remove(current);
 
-        new Thread(() -> {
-            do {
-                Map.Entry<String, Verification> verification = verifications.entrySet().stream()
-                        .filter(entry -> !entry.getValue().isVerified())
-                        .findFirst()
-                        .orElseThrow();
+            onCheckStatus.accept("Getting links from: " + current);
+            List<String> links = getLinks(current);
 
-                Document document;
-                try {
-                    document = Jsoup.connect(verification.getKey()).get();
-                    if (!verificationOptions.isShowOnlyErrors()) {
-                        publisher.submit(verification.getKey() + ": OK");
+            links.forEach(link -> {
+                String status = checkUrl(link);
+                if (verificationOptions.isShowOnlyErrors()) {
+                    if (NOT_OK.equals(status)) {
+                        onCheckStatus.accept("├───" + status + "─── " + link);
                     }
-                } catch (HttpStatusException e) {
-                    publisher.submit(verification.getKey() + ": " + e.getStatusCode());
-                    continue;
-                } catch (IllegalArgumentException | IOException e) {
-                    publisher.submit(verification.getKey() + ": " + e.getMessage());
-                    continue;
-                } finally {
-                    verification.getValue().setVerified(true);
+                } else {
+                    onCheckStatus.accept("├───" + status + "─── " + link);
                 }
-
-                if (verification.getKey().startsWith(page) && !verification.getKey().contains("#")) {
-                    Elements links = document.select("a[href]");
-
-                    for (Element link : links) {
-                        String linkHref = link.attr("href");
-                        if (linkHref.startsWith("/")) {
-                            linkHref = rootContext + linkHref;
-                        } else if (linkHref.startsWith("#")) {
-                            linkHref = verification.getKey() + linkHref;
-                        }
-                        if (linkHref.endsWith("/")) {
-                            linkHref = linkHref.substring(0, linkHref.length() - 1);
-                        }
-                        add(linkHref);
-                    }
+                if (OK.equals(status) && link.startsWith(page) && !link.contains("#")) {
+                    toVerify.add(link);
                 }
-            } while (!isQueueEmpty());
-
-            publisher.close();
-        }).start();
-
-        return publisher;
-    }
-
-    private boolean isQueueEmpty() {
-        return verifications.entrySet().stream()
-                .allMatch(entry -> entry.getValue().isVerified());
+            });
+        }
     }
 }

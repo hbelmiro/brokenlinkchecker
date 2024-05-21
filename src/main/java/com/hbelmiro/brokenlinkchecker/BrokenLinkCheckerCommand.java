@@ -4,8 +4,6 @@ import jakarta.inject.Inject;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
-import java.util.concurrent.Flow;
-
 @Command(name = "broken-link-checker", mixinStandardHelpOptions = true)
 public class BrokenLinkCheckerCommand implements Runnable {
 
@@ -31,29 +29,14 @@ public class BrokenLinkCheckerCommand implements Runnable {
                 .showOnlyErrors(showOnlyErrors)
                 .build();
 
-        brokenLinkChecker.check(rootContext, page, verificationOptions)
-                .subscribe(new Flow.Subscriber<>() {
-                    @Override
-                    public void onSubscribe(Flow.Subscription subscription) {
-                        subscription.request(Long.MAX_VALUE);
-                    }
+        brokenLinkChecker.check(
+                rootContext,
+                page,
+                verificationOptions,
+                System.out::println
+        );
 
-                    @Override
-                    public void onNext(String item) {
-                        System.out.println(item);
-                    }
 
-                    @Override
-                    public void onError(Throwable throwable) {
-                        throwable.printStackTrace();
-                        System.exit(1);
-                    }
-
-                    @Override
-                    public void onComplete() {
-                        System.out.println("✅ Verification complete!");
-                    }
-                });
+        System.out.println("✅ Verification complete!");
     }
-
 }
